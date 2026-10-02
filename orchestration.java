@@ -28,6 +28,7 @@ public class orchestration extends StarMacro {
     new StarScript(getActiveRootObject(), new File(resolvePath("create_physics.java"))).play();
 
     // Create regions and bcs
+    new StarScript(getActiveRootObject(), new File(resolvePath("create_regions.java"))).play();
 
   }
 }
