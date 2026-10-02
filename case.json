@@ -1,4 +1,11 @@
 {
   "stepFile": "C:\\Users\\mach9\\Documents\\parametric_diff_shallow_carlow.stp",
-  "partName": "FormulaStudentCar"
+  "partName": "FormulaStudentCar",
+  "globalParams": {
+    "velocityMagnitude": 15,
+    "velocityDirection": [1, 0, 0],
+    "turbulenceIntensity": 0.01,
+    "turbulenceLength": 0.01,
+    "turbulenceVelocity": 1.0
+  }
 }

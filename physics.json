@@ -1,0 +1,5 @@
+{
+  "turbModel": "kwSST",
+  "gasModel": "constantDens",
+  "coupled": true
+}

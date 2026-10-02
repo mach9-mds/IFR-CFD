@@ -33,10 +33,6 @@ public class import_geom extends StarMacro {
 
         Simulation simulation = getActiveSimulation();
 
-        Scene scene_0 = simulation.getSceneManager().createScene("3D-CAD View");
-
-        scene_0.initializeAndWait();
-
         CadModel cadModel = simulation.get(SolidModelManager.class).createSolidModel();
         cadModel.setPresentationName("IFR_CAD");
         cadModel.resetSystemOptions();

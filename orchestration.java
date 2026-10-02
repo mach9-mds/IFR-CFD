@@ -20,5 +20,14 @@ public class orchestration extends StarMacro {
 
     // Geometry import
     new StarScript(getActiveRootObject(), new File(resolvePath("import_geom.java"))).play();
+
+    // Create global parameters
+    new StarScript(getActiveRootObject(), new File(resolvePath("global_params.java"))).play();
+
+    // Create physics continuum
+    new StarScript(getActiveRootObject(), new File(resolvePath("create_physics.java"))).play();
+
+    // Create regions and bcs
+
   }
 }
