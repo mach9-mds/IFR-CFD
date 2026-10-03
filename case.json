@@ -7,5 +7,17 @@
     "turbulenceIntensity": 0.01,
     "turbulenceLength": 0.01,
     "turbulenceVelocity": 1.0
+  },
+  "meshConfig": {
+    "globalSetup": {
+      "baseSize": 0.1
+    },
+    "volumeSetup": {
+      "db1": {
+        "minCorner": [-2.0, -0.5, 0.0],
+        "maxCorner": [0.3, 0.0, 0.4],
+        "size": [0.005, 0.003, 0.003]
+      }
+    }
   }
 }

@@ -30,5 +30,8 @@ public class orchestration extends StarMacro {
     // Create regions and bcs
     new StarScript(getActiveRootObject(), new File(resolvePath("create_regions.java"))).play();
 
+    // Meshing
+    new StarScript(getActiveRootObject(), new File(resolvePath("gridding.java"))).play();
+
   }
 }
