@@ -21,9 +21,10 @@ import star.common.*;
 import star.base.neo.*;
 import star.vis.*;
 import star.cadmodeler.*;
+import star.resurfacer.*;
+import star.prismmesher.*;
 import star.trimmer.*;
 import star.meshing.*;
-
 
 public class gridding extends StarMacro {
 
@@ -34,7 +35,7 @@ public class gridding extends StarMacro {
         JsonObject mesh_config = config.getJsonObject("meshConfig");
         JsonObject global_setup = mesh_config.getJsonObject("globalSetup");
         JsonObject volume_setup = mesh_config.getJsonObject("volumeSetup");
-        //JsonObject surface_setup = mesh_config.getJsonObject("surfaceSetup");
+        JsonObject surface_setup = mesh_config.getJsonObject("surfaceSetup");
 
         // Setup meshing operation
         Simulation simulation = getActiveSimulation();
@@ -46,7 +47,10 @@ public class gridding extends StarMacro {
         // Volume controls
         create_volume_controls(simulation, meshOp, volume_setup);
 
-        simulation.println("(II) Mesh operation and volume controls configured");
+        // Surface controls
+        create_surface_controls(simulation, meshOp, surface_setup, partName);
+
+        simulation.println("(II) Mesh operation and mesh controls configured");
     }
 
     private JsonObject verify_json() {
@@ -134,6 +138,91 @@ public class gridding extends StarMacro {
                 size.getJsonNumber(2).doubleValue(), lengthUnits);
 
             simulation.println("(II) Created volume control: " + boxName);
+        }
+    }
+
+    private void create_surface_controls(Simulation simulation, AutoMeshOperation meshOp, JsonObject surfaceSetup, String partName) {
+        SolidModelPart solidModelPart =
+            (SolidModelPart) simulation.get(SimulationPartManager.class).getPart(partName);
+        Units lengthUnits = (Units) simulation.getUnitsManager().getObject("m");
+        Units dimensionlessUnits = (Units) simulation.getUnitsManager().getObject("");
+
+        for (String layerName : surfaceSetup.keySet()) {
+            JsonObject layerConfig = surfaceSetup.getJsonObject(layerName);
+            JsonArray size = layerConfig.getJsonArray("size");
+            JsonArray prismLayerConfig = layerConfig.getJsonArray("pl");
+
+            SurfaceCustomMeshControl surfaceControl =
+                meshOp.getCustomMeshControls().createSurfaceControl();
+            surfaceControl.getGeometryObjects().setQuery(null);
+
+            PartSurface partSurface =
+                (PartSurface) solidModelPart.getPartSurfaceManager().getPartSurface(layerName);
+            surfaceControl.getGeometryObjects().setObjects(partSurface);
+            surfaceControl.setPresentationName(layerName);
+
+            surfaceControl.getCustomConditions().get(PartsTargetSurfaceSizeOption.class)
+                .setSelected(PartsTargetSurfaceSizeOption.Type.CUSTOM);
+            surfaceControl.getCustomConditions().get(PartsMinimumSurfaceSizeOption.class)
+                .setSelected(PartsMinimumSurfaceSizeOption.Type.CUSTOM);
+            surfaceControl.getCustomConditions().get(PartsSurfaceCurvatureOption.class)
+                .setSelected(PartsSurfaceCurvatureOption.Type.CUSTOM_VALUES);
+            surfaceControl.getCustomConditions().get(PartsSurfaceProximityOption.class)
+                .setSelected(PartsSurfaceProximityOption.Type.CUSTOM_VALUES);
+            surfaceControl.getCustomConditions().get(PartsResurfacerSurfaceGrowthRateOption.class)
+                .setSelected(PartsResurfacerSurfaceGrowthRateOption.Type.CUSTOM_VALUES);
+
+            PartsCustomizePrismMesh prismMesh =
+                surfaceControl.getCustomConditions().get(PartsCustomizePrismMesh.class);
+            prismMesh.getCustomPrismOptions().setSelected(PartsCustomPrismsOption.Type.CUSTOMIZE);
+            PartsCustomizePrismMeshControls prismControls = prismMesh.getCustomPrismControls();
+            prismControls.setCustomizeNumLayers(true);
+            prismControls.setCustomizeTotalThickness(true);
+            surfaceControl.getCustomConditions().get(PartsCustomSurfaceGrowthRateOption.class)
+                .setSelected(PartsCustomSurfaceGrowthRateOption.Type.CUSTOM);
+
+            PartsTargetSurfaceSize targetSize =
+                surfaceControl.getCustomValues().get(PartsTargetSurfaceSize.class);
+            targetSize.getRelativeOrAbsoluteOption().setSelected(RelativeOrAbsoluteOption.Type.ABSOLUTE);
+            ((ScalarPhysicalQuantity) targetSize.getAbsoluteSizeValue()).setValueAndUnits(
+                size.getJsonNumber(0).doubleValue(), lengthUnits);
+
+            PartsMinimumSurfaceSize minimumSize =
+                surfaceControl.getCustomValues().get(PartsMinimumSurfaceSize.class);
+            minimumSize.getRelativeOrAbsoluteOption().setSelected(RelativeOrAbsoluteOption.Type.ABSOLUTE);
+            ((ScalarPhysicalQuantity) minimumSize.getAbsoluteSizeValue()).setValueAndUnits(
+                size.getJsonNumber(1).doubleValue(), lengthUnits);
+
+            NumPrismLayers numPrismLayers =
+                surfaceControl.getCustomValues().get(CustomPrismValuesManager.class)
+                    .get(NumPrismLayers.class);
+            numPrismLayers.getNumLayersValue().getQuantity()
+                .setValue(prismLayerConfig.getJsonNumber(0).doubleValue());
+
+            PrismThickness prismThickness =
+                surfaceControl.getCustomValues().get(CustomPrismValuesManager.class)
+                    .get(PrismThickness.class);
+            prismThickness.getRelativeOrAbsoluteOption()
+                .setSelected(RelativeOrAbsoluteOption.Type.ABSOLUTE);
+            ((ScalarPhysicalQuantity) prismThickness.getAbsoluteSizeValue()).setValueAndUnits(
+                prismLayerConfig.getJsonNumber(1).doubleValue(), lengthUnits);
+
+            SurfaceCurvature curvature =
+                surfaceControl.getCustomValues().get(SurfaceCurvature.class);
+            curvature.setNumPointsAroundCircle(layerConfig.getJsonNumber("curv").doubleValue());
+
+            PartsResurfacerSurfaceProximity proximity =
+                surfaceControl.getCustomValues().get(PartsResurfacerSurfaceProximity.class);
+            String proximityKey = layerConfig.containsKey("proximity") ? "proximity" : "prox";
+            proximity.setNumPointsInGap(layerConfig.getJsonNumber(proximityKey).doubleValue());
+
+            SurfaceGrowthRate growthRate =
+                surfaceControl.getCustomValues().get(SurfaceGrowthRate.class);
+            growthRate.setGrowthRateOption(SurfaceGrowthRate.GrowthRateOption.USER_SPECIFIED);
+            growthRate.getGrowthRateScalar().setValueAndUnits(
+                layerConfig.getJsonNumber("growth").doubleValue(), dimensionlessUnits);
+
+            simulation.println("(II) Created surface control: " + layerName);
         }
     }
     
