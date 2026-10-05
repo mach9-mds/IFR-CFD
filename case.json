@@ -8,6 +8,7 @@
     "turbulenceLength": 0.01,
     "turbulenceVelocity": 1.0
   },
+  "initialise": "GSI,20",
   "meshConfig": {
     "globalSetup": {
       "baseSize": 0.1

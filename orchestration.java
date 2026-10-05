@@ -33,5 +33,8 @@ public class orchestration extends StarMacro {
     // Meshing
     new StarScript(getActiveRootObject(), new File(resolvePath("gridding.java"))).play();
 
+    // Initialisation
+    new StarScript(getActiveRootObject(), new File(resolvePath("initialise.java"))).play();
+
   }
 }
