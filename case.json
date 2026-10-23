@@ -53,5 +53,14 @@
         "growth": 1.1
       }
     }
+  },
+  "PostProcessing":
+  {
+    "PlaneSections": 
+    {
+      "Plane_XY": {"min": -3.0, "max": 0.0 },
+      "Plane_XZ": {"min": -3.0, "max": 0.0 },
+      "Plane_YZ": {"min": -3.0, "max": 0.0 }
+    }
   }
 }
