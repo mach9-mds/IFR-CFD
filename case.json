@@ -1,5 +1,5 @@
 {
-  "stepFile": "CAD\\IFR_AERO_CAR_v2.stp",
+  "stepFile": "CAD/IFR_AERO_CAR_v2.stp",
   "partName": "FormulaStudentCar",
   "domain": {
     "type": "half",
@@ -12,6 +12,12 @@
     "turbulenceIntensity": 0.01,
     "turbulenceLength": 0.01,
     "turbulenceVelocity": 1.0
+  },
+   "wheels": {
+    "L20": {
+      "centre": [0, -0.4, 0.19],
+      "axis": [0, 1, 0]
+    }
   },
   "initialise": "GSI,20",
   "meshConfig": {

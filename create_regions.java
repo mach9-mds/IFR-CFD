@@ -23,7 +23,7 @@ import java.nio.file.Paths;
 import javax.json.Json;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
-
+import javax.json.JsonArray;
 
 
 public class create_regions extends StarMacro {
@@ -39,7 +39,9 @@ public class create_regions extends StarMacro {
         Region region = simulation.getRegionManager().getRegion(partName);
         set_standard_regions(region, simulation, halfCar);
 
-        // Add logic for wheels in future, will also need a dedicated layer name
+        if (config.containsKey("wheels")) {
+            set_wheels(region, simulation, config);
+        }
     }
 
     private JsonObject verify_json() {
@@ -123,4 +125,44 @@ public class create_regions extends StarMacro {
         
     }
 
+    private void set_wheels(Region region, Simulation simulation, JsonObject config) {
+        // Road velocity (as ${IFR_vel}), road at z = 0
+        JsonObject params = config.getJsonObject("globalParams");
+        JsonArray velDir = params.getJsonArray("velocityDirection");
+        double velMag = params.getJsonNumber("velocityMagnitude").doubleValue();
+        double vx = velMag * velDir.getJsonNumber(0).doubleValue();
+        double vy = velMag * velDir.getJsonNumber(1).doubleValue();
+
+        Units units_0 = ((Units) simulation.getUnitsManager().getObject("m"));
+        Units units_1 = ((Units) simulation.getUnitsManager().getObject(""));
+        LabCoordinateSystem labCoordinateSystem_0 = simulation.getCoordinateSystemManager().getLabCoordinateSystem();
+
+        JsonObject wheels = config.getJsonObject("wheels");
+        for (String layer : wheels.keySet()) {
+            JsonArray c = wheels.getJsonObject(layer).getJsonArray("centre");
+            JsonArray a = wheels.getJsonObject(layer).getJsonArray("axis");
+            double cx = c.getJsonNumber(0).doubleValue(), cy = c.getJsonNumber(1).doubleValue(), cz = c.getJsonNumber(2).doubleValue();
+            double ax = a.getJsonNumber(0).doubleValue(), ay = a.getJsonNumber(1).doubleValue(), az = a.getJsonNumber(2).doubleValue();
+
+            // Rotation rate: road speed / hub height, sign so the contact patch moves with the road
+            double omega = (vy * ax - vx * ay) / Math.sqrt(ax * ax + ay * ay + az * az) / cz;
+
+            // Hub coordinate system
+            CartesianCoordinateSystem cartesianCoordinateSystem_0 = labCoordinateSystem_0.getLocalCoordinateSystemManager().createLocalCoordinateSystem(CartesianCoordinateSystem.class, "Cartesian");
+            cartesianCoordinateSystem_0.getOrigin().setCoordinate(units_0, units_0, units_0, new DoubleVector(new double[] {cx, cy, cz}));
+            cartesianCoordinateSystem_0.setPresentationName("WheelAxis_" + layer);
+
+            // Rotating wall about the axle
+            Boundary boundary_0 = find_boundary(region, layer);
+            boundary_0.getConditions().get(WallSlidingOption.class).setSelected(WallSlidingOption.Type.LOCAL_ROTATION_RATE);
+            ReferenceFrame referenceFrame_0 = boundary_0.getValues().get(ReferenceFrame.class);
+            referenceFrame_0.setCoordinateSystem(cartesianCoordinateSystem_0);
+            referenceFrame_0.getAxisVector().setComponentsAndUnits(ax, ay, az, units_1);
+            WallRelativeRotationProfile wallRelativeRotationProfile_0 = boundary_0.getValues().get(WallRelativeRotationProfile.class);
+            Units units_2 = ((Units) simulation.getUnitsManager().getObject("radian/s"));
+            wallRelativeRotationProfile_0.getMethod(ConstantScalarProfileMethod.class).getQuantity().setValueAndUnits(omega, units_2);
+
+            simulation.println("(II) Wheel " + layer + " rotating at " + omega + " rad/s");
+        }
+    }
 }
