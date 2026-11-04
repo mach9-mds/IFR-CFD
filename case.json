@@ -11,8 +11,14 @@
     "velocityDirection": [1, 0, 0],
     "turbulenceIntensity": 0.01,
     "turbulenceLength": 0.01,
-    "turbulenceVelocity": 1.0
+    "turbulenceVelocity": 1.0,
+  
+    "ref_vel":15,
+    "ref_viscosity":1.8e-5,
+    "ref_pressure":0,
+    "ref_density":1.225
   },
+  
    "wheels": {
     "L20": {
       "centre": [0, -0.4, 0.19],
@@ -64,9 +70,9 @@
   {
     "PlaneSections": 
     {
-      "Plane_XY": {"min": -3.0, "max": 0.0 },
-      "Plane_XZ": {"min": -3.0, "max": 0.0 },
-      "Plane_YZ": {"min": -3.0, "max": 0.0 }
+      "Plane_XY": {"min": 0.03, "max": 0.41 },
+      "Plane_XZ": {"min": -0.5, "max": 0.0 },
+      "Plane_YZ": {"min": -0.38, "max": 1.81 }
     }
   }
 }

@@ -62,12 +62,18 @@ public class global_params extends StarMacro {
         double turb_intens = params.getJsonNumber("turbulenceIntensity").doubleValue();
         double turb_length = params.getJsonNumber("turbulenceLength").doubleValue();
         double turb_vel = params.getJsonNumber("turbulenceVelocity").doubleValue();
+        double ref_pressure = params.getJsonNumber("ref_pressure").doubleValue();//reference pressure
+        double ref_viscosity = params.getJsonNumber("ref_viscosity").doubleValue();//reference viscosity
+        double ref_density = params.getJsonNumber("ref_density").doubleValue();
+
 
         // Create units
         Units units_0 = simulation_0.getUnitsManager().getPreferredUnits(Dimensions.Builder().velocity(1).build());
         Units units_1 = simulation_0.getUnitsManager().getPreferredUnits(Dimensions.Builder().build());
         Units units_2 = simulation_0.getUnitsManager().getPreferredUnits(Dimensions.Builder().length(1).build());
-
+        Units pressureUnits = simulation_0.getUnitsManager().getPreferredUnits(Dimensions.Builder().mass(1).length(-1).time(-2).build());
+        Units viscosityUnits = simulation_0.getUnitsManager().getPreferredUnits(Dimensions.Builder().mass(1).length(-1).time(-1).build());
+        Units densityUnits = simulation_0.getUnitsManager().getPreferredUnits(Dimensions.Builder().mass(1).length(-3).build());
         // Create parameters
         // Velocity
         simulation_0.get(GlobalParameterManager.class).createGlobalParameter(ScalarGlobalParameter.class, "Scalar");
@@ -104,7 +110,24 @@ public class global_params extends StarMacro {
         scalarGlobalParameter_3.setPresentationName("IFR_turb_vel");
         scalarGlobalParameter_3.setDimensions(Dimensions.Builder().length(1).time(-1).build());
         scalarGlobalParameter_3.getQuantity().setValueAndUnits(turb_vel, units_0);
-  
+        //reference static pressure
+        simulation_0.get(GlobalParameterManager.class).createGlobalParameter(ScalarGlobalParameter.class, "Scalar");
+        ScalarGlobalParameter scalarGlobalParameter_4 = ((ScalarGlobalParameter) simulation_0.get(GlobalParameterManager.class).getObject("Scalar"));
+        scalarGlobalParameter_4.setPresentationName("IFR_ref_pressure");
+        scalarGlobalParameter_4.setDimensions(Dimensions.Builder().mass(1).length(-1).time(-2).build());
+        scalarGlobalParameter_4.getQuantity().setValueAndUnits(ref_pressure, pressureUnits);
+        //reference dynamic viscosity
+        simulation_0.get(GlobalParameterManager.class).createGlobalParameter(ScalarGlobalParameter.class, "Scalar");
+        ScalarGlobalParameter scalarGlobalParameter_5 = ((ScalarGlobalParameter) simulation_0.get(GlobalParameterManager.class).getObject("Scalar"));
+        scalarGlobalParameter_5.setPresentationName("IFR_ref_viscosity");
+        scalarGlobalParameter_5.setDimensions(Dimensions.Builder().mass(1).length(-1).time(-1).build());
+        scalarGlobalParameter_5.getQuantity().setValueAndUnits(ref_viscosity, viscosityUnits);
+        //reference density
+        simulation_0.get(GlobalParameterManager.class).createGlobalParameter(ScalarGlobalParameter.class, "Scalar");
+        ScalarGlobalParameter scalarGlobalParameter_6 = ((ScalarGlobalParameter) simulation_0.get(GlobalParameterManager.class).getObject("Scalar"));
+        scalarGlobalParameter_6.setPresentationName("IFR_ref_density");
+        scalarGlobalParameter_6.setDimensions(Dimensions.Builder().mass(1).length(-3).build());
+        scalarGlobalParameter_6.getQuantity().setValueAndUnits(ref_density, densityUnits);
     }
 
 }
