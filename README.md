@@ -20,15 +20,16 @@ Keep all `.java` and `.json` files in the same folder, because the subroutines f
 |---|---|
 | `stepFile` | Relative Path to the car STEP file |
 | `partName` | Name given to the fluid domain part and region |
-| `domain.type` | `half` (keeps the −y side, symmetry plane at y = 0) or `full` |
-| `domain.minCorner` / `maxCorner` | Absolute box corners [x, y, z] in m. For `half`, `maxCorner` y must be 0 |
+| `domain.type` | `half` (symmetry plane at y = 0) or `full` |
+| `domain.side` | Half car only. `left` keeps the −y side (default if omitted), `right` keeps the +y side |
+| `domain.minCorner` / `maxCorner` | Absolute box corners [x, y, z] in m. For `half`, write the box for the left side (`maxCorner` y = 0); with `side: right` it is mirrored to +y automatically. Corners already on the +y side (`minCorner` y = 0) are also accepted |
 | `globalParams` | Freestream velocity magnitude and direction, turbulence intensity, length scale and velocity scale |
 | `wheels` | Optional. One entry per wheel layer (e.g. `L20`) with `centre` (hub centre [x, y, z] in m) and `axis` (axle direction [x, y, z], either sign). Omit for stationary wheels |
 | `initialise` | `"GSI,<levels>"` for grid sequencing (coupled solver only); anything else gives constant initialisation |
 | `meshConfig.globalSetup.baseSize` | Base mesh size (m) |
-| `meshConfig.volumeSetup` | Refinement boxes: `minCorner`, `maxCorner`, anisotropic `size` [x, y, z] |
+| `meshConfig.volumeSetup` | Refinement boxes: `minCorner`, `maxCorner`, anisotropic `size` [x, y, z]. Make them span both sides of the car (full width) so the same boxes work for a left half, a right half or a full car |
 | `meshConfig.surfaceSetup` | Per-layer surface controls. `size` [target, min], `pl` [prism layers, total thickness], `curv` (points per circle), `prox` (points in gap), `growth` (surface growth rate) |
-| `PostProcessing.PlaneSections` | Per-plane movement range. Each key is a plane name (`Plane_XY`, `Plane_XZ`, `Plane_YZ`); `min` / `max` define the sweep range along the plane's normal axis |
+| `PostProcessing.PlaneSections` | Per-plane movement range. Each key is a plane name (`Plane_XY`, `Plane_XZ`, `Plane_YZ`); `min` / `max` define the sweep range along the plane's normal axis. Write `Plane_XZ` for the left side (y ≤ 0); with `domain.side: right` it is mirrored to +y automatically |
 
 `physics.json` holds `turbModel` (`kwSST`), `gasModel` (`constantDens`) and `coupled` (true/false).
 
@@ -39,7 +40,7 @@ Keep all `.java` and `.json` files in the same folder, because the subroutines f
 1. **`import_geom.java`**: imports every body in the STEP file into 3D-CAD, runs CAD repair, and creates one part per body.
 2. **`create_domain.java`**: builds a box from `domain` and names its faces:
    - `L1` inlet (x-min), `L2` outlet (x-max), `L4` road (z-min)
-   - `L0` symmetry (y = 0), half car only
+   - `L0` symmetry (the y = 0 face: y-max for a `left` half, y-min for a `right` half), half car only
    - `L3` slip walls (the remaining faces)
 
    It then subtracts the car from the box and names the result `partName`.
