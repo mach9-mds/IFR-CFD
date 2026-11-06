@@ -2,7 +2,9 @@
 // Written by Simcenter STAR-CCM+ 17.04.008
 
 // This subroutine creates the box fluid domain and subtracts the car from it.
-// Half car: -y side kept, y-max face (y=0) is symmetry plane L0.
+// Half car: domain.side "left" keeps the -y side (default), "right" keeps the +y side.
+// Corners are written for the left half (maxCorner y = 0) and mirrored in y for the right half.
+// The face at y=0 is the symmetry plane L0.
 // Full car: both side walls are slip walls L3.
 
 package macro;
@@ -38,10 +40,17 @@ public class create_domain extends StarMacro {
         String type = domain.getString("type");
         double[] minCorner = read_corner(domain, "minCorner");
         double[] maxCorner = read_corner(domain, "maxCorner");
-        validate_domain(type, minCorner, maxCorner);
+        String side = domain.getString("side", "left");
+        boolean mirrored = mirror_for_right_side(type, side, minCorner, maxCorner);
+        validate_domain(type, side, domain.containsKey("side"), minCorner, maxCorner);
 
         Simulation simulation = getActiveSimulation();
-        simulation.println("(II) Creating " + type + " car domain . . .");
+        String label = type.equals("half") ? type + " (" + side + ")" : type;
+        simulation.println("(II) Creating " + label + " car domain . . .");
+        if (mirrored) {
+            simulation.println("(II) Mirrored domain corners in y for right side: y from "
+                + minCorner[1] + " to " + maxCorner[1]);
+        }
 
         // Car parts are all CAD parts present before the domain is created
         List<GeometryPart> carParts = new ArrayList<>();
@@ -55,7 +64,7 @@ public class create_domain extends StarMacro {
         }
 
         SimpleBlockPart block = create_block(simulation, minCorner, maxCorner);
-        name_block_faces(simulation, block, type);
+        name_block_faces(simulation, block, type, side);
         subtract_car(simulation, block, carParts, partName);
 
         simulation.println("(II) Domain created: " + partName);
@@ -86,7 +95,19 @@ public class create_domain extends StarMacro {
             corner.getJsonNumber(2).doubleValue()};
     }
 
-    private void validate_domain(String type, double[] minCorner, double[] maxCorner) {
+    private boolean mirror_for_right_side(String type, String side, double[] minCorner, double[] maxCorner) {
+        // Corners are written once for the left (-y) half; flip them to +y when side is right.
+        // Corners already on the +y side (minCorner y = 0) are used unchanged.
+        if (!type.equals("half") || !side.equals("right") || maxCorner[1] != 0.0) {
+            return false;
+        }
+        double minY = minCorner[1];
+        minCorner[1] = -maxCorner[1] + 0.0;
+        maxCorner[1] = -minY;
+        return true;
+    }
+
+    private void validate_domain(String type, String side, boolean sideGiven, double[] minCorner, double[] maxCorner) {
         if (!type.equals("half") && !type.equals("full")) {
             throw new IllegalArgumentException("domain.type must be 'half' or 'full', got '" + type + "'");
         }
@@ -95,8 +116,20 @@ public class create_domain extends StarMacro {
                 throw new IllegalArgumentException("domain.minCorner must be less than maxCorner on every axis");
             }
         }
-        if (type.equals("half") && maxCorner[1] != 0.0) {
-            throw new IllegalArgumentException("Half car domain requires maxCorner y = 0 (symmetry plane)");
+        if (type.equals("half")) {
+            if (!side.equals("left") && !side.equals("right")) {
+                throw new IllegalArgumentException("domain.side must be 'left' or 'right', got '" + side + "'");
+            }
+            if (side.equals("left") && maxCorner[1] != 0.0) {
+                throw new IllegalArgumentException("Left half car domain requires maxCorner y = 0 (symmetry plane), got minCorner y = "
+                    + minCorner[1] + ", maxCorner y = " + maxCorner[1] + ". Use y from -W to 0, or set domain.side to 'right'");
+            }
+            if (side.equals("right") && minCorner[1] != 0.0) {
+                throw new IllegalArgumentException("Right half car domain requires minCorner y = 0 (symmetry plane), got minCorner y = "
+                    + minCorner[1] + ", maxCorner y = " + maxCorner[1] + ". Use y from -W to 0 (mirrored automatically) or from 0 to +W");
+            }
+        } else if (sideGiven) {
+            getActiveSimulation().println("(WW) domain.side is ignored for a full car domain");
         }
         if (minCorner[2] != 0.0) {
             getActiveSimulation().println("(WW) domain.minCorner z is not 0, road will not be at ground level");
@@ -123,7 +156,7 @@ public class create_domain extends StarMacro {
         return block;
     }
 
-    private void name_block_faces(Simulation simulation, SimpleBlockPart block, String type) {
+    private void name_block_faces(Simulation simulation, SimpleBlockPart block, String type, String side) {
         // Same layer names as the CAD-defined domain so create_regions is unchanged
         PartSurface blockSurface = block.getPartSurfaces().iterator().next();
         Vector<Integer> patches = block.getPartSurfacePatches(blockSurface);
@@ -137,7 +170,9 @@ public class create_domain extends StarMacro {
         block.splitPartSurfaceByPatch(blockSurface, Arrays.asList(block.getMaxXFace()), "L2", simulation);
         block.splitPartSurfaceByPatch(blockSurface, Arrays.asList(block.getMinZFace()), "L4", simulation);
         if (type.equals("half")) {
-            block.splitPartSurfaceByPatch(blockSurface, Arrays.asList(block.getMaxYFace()), "L0", simulation);
+            // Symmetry plane is the y=0 face: y-max for left (-y) half, y-min for right (+y) half
+            block.splitPartSurfaceByPatch(blockSurface,
+                Arrays.asList(side.equals("right") ? block.getMinYFace() : block.getMaxYFace()), "L0", simulation);
         }
 
         int expectedSurfaces = type.equals("half") ? 5 : 4;
@@ -146,7 +181,7 @@ public class create_domain extends StarMacro {
                 + " surfaces, expected " + expectedSurfaces);
         }
 
-        // Remaining faces are slip walls: y-min and z-max (plus y-max for full car)
+        // Remaining faces are slip walls: outer y face and z-max (both y faces for full car)
         blockSurface.setPresentationName("L3");
     }
 

@@ -200,6 +200,7 @@ public class post_processing extends StarMacro {
 
         min_y = xz.getJsonNumber("min").doubleValue();
         max_y = xz.getJsonNumber("max").doubleValue();
+        mirror_xz_for_right_side(config);
 
         min_x = yz.getJsonNumber("min").doubleValue();
         max_x = yz.getJsonNumber("max").doubleValue();
@@ -384,6 +385,22 @@ public class post_processing extends StarMacro {
     boundary_bodyworkL100 = region_FormulaStudentCar.getBoundaryManager().getBoundary("BODYWORK.L100");
     boundary_bodyworkL101 = region_FormulaStudentCar.getBoundaryManager().getBoundary("BODYWORK.L101");
     boundary_wheelsL20   = region_FormulaStudentCar.getBoundaryManager().getBoundary("WHEELS.L20");
+  }
+
+  // Plane_XZ range is written for the left (-y) half; mirror it to +y for a right half car,
+  // the same way create_domain mirrors the domain. A range already on +y is used unchanged.
+  private void mirror_xz_for_right_side(JsonObject config) {
+    JsonObject domain = config.getJsonObject("domain");
+    if (domain == null || !domain.getString("type", "full").equals("half")
+        || !domain.getString("side", "left").equals("right")) {
+      return;
+    }
+    if (min_y <= 0.0 && max_y <= 0.0) {
+      // Negate both ends so the sweep keeps the same direction relative to the car
+      min_y = -min_y + 0.0;
+      max_y = -max_y + 0.0;
+      getActiveSimulation().println("(II) Mirrored Plane_XZ sweep for right side: y from " + min_y + " to " + max_y);
+    }
   }
 
   private JsonObject verify_json() {

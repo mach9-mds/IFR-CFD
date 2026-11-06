@@ -3,6 +3,7 @@
   "partName": "FormulaStudentCar",
   "domain": {
     "type": "half",
+    "side": "left",
     "minCorner": [-6.0, -3.0, 0.0],
     "maxCorner": [12.0, 0.0, 3.0]
   },
@@ -33,12 +34,12 @@
     "volumeSetup": {
       "db1": {
         "minCorner": [-0.5, -0.6, 0.0],
-        "maxCorner": [2.0, 0.0, 0.5],
+        "maxCorner": [2.0, 0.6, 0.5],
         "size": [0.005, 0.003, 0.003]
       },
       "db2": {
         "minCorner": [-0.6, -0.7, 0.0],
-        "maxCorner": [3.0, 0.0, 0.8],
+        "maxCorner": [3.0, 0.7, 0.8],
         "size": [0.015, 0.01, 0.01]
       }
     },
