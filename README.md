@@ -8,6 +8,7 @@ Automated external-aero CFD setup for STAR-CCM+ 17.04. Export the car as a STEP 
    - centreline at y = 0, ground at z = 0, flow in +x
    - tyres sunk slightly below z = 0
    - surfaces named by layer (e.g. `L100`, `L101`, `L20`), with each rotating wheel on its own layer, e.g L20,L21,L22...
+   - then, with the model in the same state, run `export_cfd_params.bas` in 3DEXPERIENCE from the 3D Shape that holds `CFD EXPORT` (Press alt + f8 for macros), and save the CSV in `CAD/`.
 2. Edit `case.json` (see below), and `physics.json` if needed.
 3. Open STAR-CCM+ and create a **new, empty simulation**.
 4. Go to **File → Macro → Play Macro** and select `orchestration.java`.
@@ -24,7 +25,8 @@ Keep all `.java` and `.json` files in the same folder, because the subroutines f
 | `domain.side` | Half car only. `left` keeps the −y side (default if omitted), `right` keeps the +y side |
 | `domain.minCorner` / `maxCorner` | Absolute box corners [x, y, z] in m. For `half`, write the box for the left side (`maxCorner` y = 0); with `side: right` it is mirrored to +y automatically. Corners already on the +y side (`minCorner` y = 0) are also accepted |
 | `globalParams` | Freestream velocity magnitude and direction, turbulence intensity, length scale and velocity scale |
-| `wheels` | Optional. One entry per wheel layer (e.g. `L20`) with `centre` (hub centre [x, y, z] in m) and `axis` (axle direction [x, y, z], either sign). Omit for stationary wheels |
+| `cadParamsFile` | Optional. Path (relative to `case.json`) to the CSV written by `export_cfd_params.bas` from the CAD's `CFD EXPORT` parameter set |
+| `wheels` | Optional. One entry per wheel layer (e.g. `L20`). Either `cadPrefix` (e.g. `"FL"`: hub centre and axle read from `FL_CentreX/Y/Z` and `FL_AxisX/Y/Z` in `cadParamsFile`), or `centre` (hub centre [x, y, z] in m) and `axis` (axle direction, either sign). Omit for stationary wheels |
 | `initialise` | `"GSI,<levels>"` for grid sequencing (coupled solver only); anything else gives constant initialisation |
 | `meshConfig.globalSetup.baseSize` | Base mesh size (m) |
 | `meshConfig.volumeSetup` | Refinement boxes: `minCorner`, `maxCorner`, anisotropic `size` [x, y, z]. Make them span both sides of the car (full width) so the same boxes work for a left half, a right half or a full car |

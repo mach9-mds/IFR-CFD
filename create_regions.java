@@ -25,6 +25,10 @@ import javax.json.JsonObject;
 import javax.json.JsonReader;
 import javax.json.JsonArray;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.nio.charset.StandardCharsets;
+
 
 public class create_regions extends StarMacro {
     
@@ -138,11 +142,22 @@ public class create_regions extends StarMacro {
         LabCoordinateSystem labCoordinateSystem_0 = simulation.getCoordinateSystemManager().getLabCoordinateSystem();
 
         JsonObject wheels = config.getJsonObject("wheels");
+
+        // CAD parameter export (path relative to case.json, like stepFile)
+        Map<String, String> cadParams = null;
+        String cadSource = null;
+        if (config.containsKey("cadParamsFile")) {
+            Path csv = Paths.get(resolvePath("case.json")).toAbsolutePath().normalize().getParent()
+                .resolve(config.getString("cadParamsFile")).normalize();
+            cadSource = csv.getFileName().toString();
+            cadParams = read_cad_params(csv);
+            simulation.println("(II) Read " + cadParams.size() + " CAD parameters from " + csv);
+        }
+
         for (String layer : wheels.keySet()) {
-            JsonArray c = wheels.getJsonObject(layer).getJsonArray("centre");
-            JsonArray a = wheels.getJsonObject(layer).getJsonArray("axis");
-            double cx = c.getJsonNumber(0).doubleValue(), cy = c.getJsonNumber(1).doubleValue(), cz = c.getJsonNumber(2).doubleValue();
-            double ax = a.getJsonNumber(0).doubleValue(), ay = a.getJsonNumber(1).doubleValue(), az = a.getJsonNumber(2).doubleValue();
+            double[][] geometry = wheel_geometry(simulation, wheels.getJsonObject(layer), layer, cadParams, cadSource);
+            double cx = geometry[0][0], cy = geometry[0][1], cz = geometry[0][2];
+            double ax = geometry[1][0], ay = geometry[1][1], az = geometry[1][2];
 
             // Rotation rate: road speed / hub height, sign so the contact patch moves with the road
             double omega = (vy * ax - vx * ay) / Math.sqrt(ax * ax + ay * ay + az * az) / cz;
@@ -165,4 +180,141 @@ public class create_regions extends StarMacro {
             simulation.println("(II) Wheel " + layer + " rotating at " + omega + " rad/s");
         }
     }
+    // Returns {centre (m), axis} for one wheel: from the CAD export if the wheel has a cadPrefix,
+    // otherwise from its centre/axis arrays in case.json
+    private double[][] wheel_geometry(Simulation simulation, JsonObject wheel, String layer,
+            Map<String, String> cadParams, String cadSource) {
+        double[] centre;
+        double[] axis;
+        if (wheel.containsKey("cadPrefix")) {
+            String prefix = wheel.getString("cadPrefix");
+            if (cadParams == null) {
+                throw new IllegalArgumentException("Wheel " + layer + " has cadPrefix '" + prefix
+                    + "' but case.json has no cadParamsFile");
+            }
+            centre = cad_vector(cadParams, prefix + "_Centre", true, cadSource);
+            axis = cad_vector(cadParams, prefix + "_Axis", false, cadSource);
+            if (wheel.containsKey("centre") || wheel.containsKey("axis")) {
+                simulation.println("(WW) Wheel " + layer + ": centre/axis in case.json ignored, using "
+                    + prefix + "_* from " + cadSource);
+            }
+            simulation.println("(II) Wheel " + layer + ": hub centre and axis from " + prefix + "_* in " + cadSource);
+        } else {
+            centre = json_vector(wheel, "centre", layer);
+            axis = json_vector(wheel, "axis", layer);
+            simulation.println("(II) Wheel " + layer + ": hub centre and axis from case.json");
+        }
+
+        double axisLength = Math.sqrt(axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]);
+        if (axisLength < 1e-9) {
+            throw new IllegalArgumentException("Wheel " + layer + " has a zero-length axis");
+        }
+        if (Math.abs(axisLength - 1.0) > 1e-3) {
+            simulation.println("(WW) Wheel " + layer + ": axis length is " + axisLength + ", not 1 (only its direction is used)");
+        }
+        if (centre[2] <= 0.0) {
+            throw new IllegalArgumentException("Wheel " + layer + " hub height (centre z) must be above the road (z = 0), got " + centre[2] + " m");
+        }
+        if (centre[2] > 1.0) {
+            simulation.println("(WW) Wheel " + layer + ": hub height " + centre[2] + " m looks too large, check centre is in metres");
+        }
+        return new double[][] {centre, axis};
+    }
+
+    private double[] json_vector(JsonObject wheel, String key, String layer) {
+        JsonArray array = wheel.getJsonArray(key);
+        if (array == null || array.size() != 3) {
+            throw new IllegalArgumentException("Wheel " + layer + " needs '" + key + "' as an [x, y, z] array, or a cadPrefix");
+        }
+        return new double[] {
+            array.getJsonNumber(0).doubleValue(),
+            array.getJsonNumber(1).doubleValue(),
+            array.getJsonNumber(2).doubleValue()};
+    }
+
+    // Reads the CSV written by export_cfd_params.bas: one "<tree path>\<name>,<value>" per line,
+    // lines starting with # are comments. Keys are the bare parameter names (path dropped).
+    private Map<String, String> read_cad_params(Path csv) {
+        if (!Files.isRegularFile(csv)) {
+            throw new IllegalArgumentException("CAD parameter file not found: " + csv + " (check cadParamsFile in case.json)");
+        }
+        List<String> lines;
+        try {
+            // Latin-1 never fails to decode, whatever code page the CATIA macro wrote with
+            lines = Files.readAllLines(csv, StandardCharsets.ISO_8859_1);
+        } catch (IOException exception) {
+            throw new IllegalArgumentException("Could not read CAD parameter file " + csv + ": " + exception.getMessage(), exception);
+        }
+        Map<String, String> values = new LinkedHashMap<>();
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty() || line.startsWith("#")) {
+                continue;
+            }
+            int comma = line.lastIndexOf(',');
+            if (comma < 0) {
+                throw new IllegalArgumentException("Bad line in " + csv.getFileName() + " (expected name,value): " + line);
+            }
+            String name = line.substring(0, comma).trim();
+            name = name.substring(name.lastIndexOf('\\') + 1);
+            values.put(name, line.substring(comma + 1).trim());
+        }
+        return values;
+    }
+
+    private static final Pattern CAD_VALUE =
+        Pattern.compile("([-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)\\s*([A-Za-z]*)");
+
+    // Returns {base+"X", base+"Y", base+"Z"} from the CAD export: lengths converted to m
+    // from whatever unit CATIA wrote, other values must have no unit
+    private double[] cad_vector(Map<String, String> values, String base, boolean isLength, String source) {
+        String[] components = {"X", "Y", "Z"};
+        List<String> missing = new ArrayList<>();
+        for (String component : components) {
+            if (!values.containsKey(base + component)) {
+                missing.add(base + component);
+            }
+        }
+        if (!missing.isEmpty()) {
+            // List near-misses (e.g. "RL_CentreX.1" after a CATIA rename clash) to make the fix obvious
+            String prefix = base.substring(0, base.indexOf('_') + 1);
+            List<String> similar = new ArrayList<>();
+            for (String name : values.keySet()) {
+                if (name.startsWith(prefix)) {
+                    similar.add(name);
+                }
+            }
+            throw new IllegalArgumentException(source + " is missing " + missing
+                + (similar.isEmpty() ? "" : ". Parameters starting with " + prefix + " in the file: " + similar));
+        }
+
+        double[] vector = new double[3];
+        for (int i = 0; i < 3; i++) {
+            String name = base + components[i];
+            String raw = values.get(name);
+            Matcher match = CAD_VALUE.matcher(raw);
+            if (!match.matches()) {
+                throw new IllegalArgumentException(name + " in " + source + " is not a number: '" + raw + "'");
+            }
+            double number = Double.parseDouble(match.group(1));
+            String unit = match.group(2).toLowerCase(Locale.ROOT);
+            if (!isLength) {
+                if (!unit.isEmpty()) {
+                    throw new IllegalArgumentException(name + " in " + source + " should have no unit: '" + raw + "'");
+                }
+                vector[i] = number;
+                continue;
+            }
+            switch (unit) {
+                case "mm": vector[i] = number * 1e-3; break;
+                case "cm": vector[i] = number * 1e-2; break;
+                case "m":  vector[i] = number; break;
+                case "in": vector[i] = number * 0.0254; break;
+                case "":   throw new IllegalArgumentException(name + " in " + source + " has no length unit: '" + raw + "'");
+                default:   throw new IllegalArgumentException(name + " in " + source + " has an unknown length unit: '" + raw + "'");
+            }
+        }
+        return vector;
+    }
+
 }
