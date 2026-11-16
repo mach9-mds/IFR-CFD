@@ -17,6 +17,11 @@ import javax.json.JsonReader;
 import javax.json.Json;
 import javax.json.JsonArray;
 
+import java.awt.GraphicsEnvironment;
+import java.awt.HeadlessException;
+import javax.swing.JDialog;
+import javax.swing.JOptionPane;
+
 import star.common.*;
 import star.base.neo.*;
 import star.vis.*;
@@ -25,6 +30,8 @@ import star.resurfacer.*;
 import star.prismmesher.*;
 import star.trimmer.*;
 import star.meshing.*;
+
+
 
 public class gridding extends StarMacro {
 
@@ -147,17 +154,26 @@ public class gridding extends StarMacro {
         Units lengthUnits = (Units) simulation.getUnitsManager().getObject("m");
         Units dimensionlessUnits = (Units) simulation.getUnitsManager().getObject("");
 
+                List<String> skipped = new ArrayList<>();
         for (String layerName : surfaceSetup.keySet()) {
             JsonObject layerConfig = surfaceSetup.getJsonObject(layerName);
             JsonArray size = layerConfig.getJsonArray("size");
             JsonArray prismLayerConfig = layerConfig.getJsonArray("pl");
 
+            // Find the surfaces before creating the control, so a missing layer leaves no empty control behind
+            List<PartSurface> surfaces = find_surfaces(domainPart, layerName);
+            if (surfaces.isEmpty()) {
+                skipped.add(layerName);
+                continue;
+            }
+
             SurfaceCustomMeshControl surfaceControl =
                 meshOp.getCustomMeshControls().createSurfaceControl();
             surfaceControl.getGeometryObjects().setQuery(null);
 
-            surfaceControl.getGeometryObjects().setObjects(find_surfaces(domainPart, layerName));
+            surfaceControl.getGeometryObjects().setObjects(surfaces);
             surfaceControl.setPresentationName(layerName);
+            
 
             surfaceControl.getCustomConditions().get(PartsTargetSurfaceSizeOption.class)
                 .setSelected(PartsTargetSurfaceSizeOption.Type.CUSTOM);
@@ -222,6 +238,11 @@ public class gridding extends StarMacro {
 
             simulation.println("(II) Created surface control: " + layerName);
         }
+
+        if (!skipped.isEmpty()) {
+            warn(simulation, "No surfaces found on " + partName + " for layer(s) " + skipped
+            + ".\nTheir surface controls were skipped. Check surfaceSetup in case.json.");
+        }
     }
 
     private List<PartSurface> find_surfaces(GeometryPart part, String layer) {
@@ -234,10 +255,23 @@ public class gridding extends StarMacro {
                 surfaces.add(surface);
             }
         }
-        if (surfaces.isEmpty()) {
-            throw new IllegalStateException("No surfaces found for layer " + layer + " on part " + part.getPresentationName());
-        }
         return surfaces;
     }
     
+    private void warn(Simulation simulation, String message) {
+        // Console record always; pop-up only when there is a screen to show it on
+        simulation.println("(WW) " + message);
+        if (GraphicsEnvironment.isHeadless()) {
+            return;
+        }
+        try {
+            JOptionPane pane = new JOptionPane(message, JOptionPane.WARNING_MESSAGE);
+            JDialog dialog = pane.createDialog("IFR-CFD warning");
+            dialog.setAlwaysOnTop(true);
+            dialog.setVisible(true);
+            dialog.dispose();
+        } catch (HeadlessException exception) {
+            // No display available: the console line is the record
+        }
+    }
 }
