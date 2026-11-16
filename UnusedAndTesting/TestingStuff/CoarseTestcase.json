@@ -1,0 +1,86 @@
+{
+  "stepFile": "CAD/IFR_AERO_CAR_v3.stp",
+  "cadParamsFile": "CAD/CFDParam_v3.csv",
+  "partName": "FormulaStudentCar",
+  "domain": {
+    "type": "half",
+    "side": "left",
+    "minCorner": [-6.0, -3.0, 0.0],
+    "maxCorner": [12.0, 0.0, 3.0]
+  },
+  "globalParams": {
+    "velocityMagnitude": 15,
+    "velocityDirection": [1, 0, 0],
+    "turbulenceIntensity": 0.01,
+    "turbulenceLength": 0.01,
+    "turbulenceVelocity": 1.0,
+
+    "ref_vel":15,
+    "ref_viscosity":1.8e-5,
+    "ref_pressure":0,
+    "ref_density":1.225
+  },
+
+  "wheels": {
+    "L20": { "cadPrefix": "FL" },
+    "L21": { "cadPrefix": "RL" }
+  },
+
+  "initialise": "GSI,20",
+  "meshConfig": {
+    "globalSetup": {
+      "baseSize": 0.4
+    },
+    "volumeSetup": {
+      "db1": {
+        "minCorner": [-0.5, -0.6, 0.0],
+        "maxCorner": [2.0, 0.6, 0.5],
+        "size": [0.05, 0.05, 0.05]
+      },
+      "db2": {
+        "minCorner": [-0.6, -0.7, 0.0],
+        "maxCorner": [3.0, 0.7, 0.8],
+        "size": [0.1, 0.1, 0.1]
+      }
+    },
+    "surfaceSetup": {
+      "L100": {
+        "size": [0.05, 0.0125],
+        "pl": [2, 0.01],
+        "curv": 36,
+        "prox": 2.0,
+        "growth": 1.3
+      },
+      "L101": {
+        "size": [0.05, 0.0125],
+        "pl": [2, 0.01],
+        "curv": 36,
+        "prox": 2.0,
+        "growth": 1.3
+      },
+      "L20": {
+        "size": [0.05, 0.0125],
+        "pl": [2, 0.01],
+        "curv": 36,
+        "prox": 2.0,
+        "growth": 1.3
+      },
+      "L21": {
+        "size": [0.05, 0.0125],
+        "pl": [2, 0.01],
+        "curv": 36,
+        "prox": 2.0,
+        "growth": 1.3
+      }
+    }
+  },
+  "PostProcessing":
+  {
+    "PlaneSections":
+    {
+      "Plane_XY": {"min": 0.03, "max": 0.41 },
+      "Plane_XZ": {"min": -0.5, "max": 0.0 },
+      "Plane_YZ": {"min": -0.38, "max": 1.81 }
+    }
+  }
+}
