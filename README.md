@@ -4,16 +4,18 @@ Automated external-aero CFD setup for STAR-CCM+ 17.04. Export the car as a STEP 
 
 ## Running
 
-1. Export the car as a STEP file. It must be **car only** (no domain), made of watertight surface bodies, with these conventions:
+1. Export the car as a STEP file into `CAD/`. It must be **car only** (no domain), made of watertight surface bodies, with these conventions:
    - centreline at y = 0, ground at z = 0, flow in +x
    - tyres sunk slightly below z = 0
-   - surfaces named by layer (e.g. `L100`, `L101`, `L20`), with each rotating wheel on its own layer, e.g L20,L21,L22...
-   - then, with the model in the same state, run `export_cfd_params.bas` in 3DEXPERIENCE from the 3D Shape that holds `CFD EXPORT` (Press alt + f8 for macros), and save the CSV in `CAD/`.
-2. Edit `case.json` (see below), and `physics.json` if needed.
-3. Open STAR-CCM+ and create a **new, empty simulation**.
-4. Go to **File → Macro → Play Macro** and select `orchestration.java`.
+   - surfaces named by layer (e.g. `L100` bodywork, `L20` front-left wheel, `L21` rear-left wheel), with each rotating wheel on its own layer
+2. With the model in the same state, export the wheel parameters. Open the 3D Shape that holds the `CFD EXPORT` parameter set, press Alt+F8, run `CAD/export_cfd_params.bas`, save the CSV in `CAD/` and point `cadParamsFile` in `case.json` at it. For each wheel the set needs `<prefix>_CentreX/Y/Z` (hub centre) and `<prefix>_AxisX/Y/Z` (axle direction), e.g. `FL_CentreX`. Every name must be unique: if CATIA renames one to resolve a clash (e.g. `RL_CentreX.1`), rename it back, or the setup stops with a missing-parameter error.
+3. Edit `case.json` (see below), and `physics.json` if needed.
+4. Open STAR-CCM+ and create a **new, empty simulation**.
+5. Go to **File → Macro → Play Macro** and select `orchestration.java`.
 
-Keep all `.java` and `.json` files in the same folder, because the subroutines find each other relative to that folder. The macro only sets the case up: it doesn't generate the mesh or run the solver, so do both from the GUI afterwards. Check the output window for `(II)` progress lines and `(WW)` warnings.
+Keep all `.java` and `.json` files in the same folder, because the subroutines find each other relative to that folder. The macro only sets the case up: it doesn't generate the mesh or run the solver, so do both from the GUI afterwards. 
+
+Check the output window for `(II)` progress lines and `(WW)` warnings. Some warnings also open a pop-up, for example when a `surfaceSetup` layer isn't on the car, and the setup waits until you click OK.
 
 ## case.json
 
@@ -25,12 +27,12 @@ Keep all `.java` and `.json` files in the same folder, because the subroutines f
 | `domain.side` | Half car only. `left` keeps the −y side (default if omitted), `right` keeps the +y side |
 | `domain.minCorner` / `maxCorner` | Absolute box corners [x, y, z] in m. For `half`, write the box for the left side (`maxCorner` y = 0); with `side: right` it is mirrored to +y automatically. Corners already on the +y side (`minCorner` y = 0) are also accepted |
 | `globalParams` | Freestream velocity magnitude and direction, turbulence intensity, length scale and velocity scale |
-| `cadParamsFile` | Optional. Path (relative to `case.json`) to the CSV written by `export_cfd_params.bas` from the CAD's `CFD EXPORT` parameter set |
+| `cadParamsFile` | Optional. Path (relative to `case.json`) to the CSV written by `CAD/export_cfd_params.bas` from the CAD's `CFD EXPORT` parameter set. Lengths can be in mm, cm, m or in (converted to m); axis components have no unit |
 | `wheels` | Optional. One entry per wheel layer (e.g. `L20`). Either `cadPrefix` (e.g. `"FL"`: hub centre and axle read from `FL_CentreX/Y/Z` and `FL_AxisX/Y/Z` in `cadParamsFile`), or `centre` (hub centre [x, y, z] in m) and `axis` (axle direction, either sign). Omit for stationary wheels |
 | `initialise` | `"GSI,<levels>"` for grid sequencing (coupled solver only); anything else gives constant initialisation |
 | `meshConfig.globalSetup.baseSize` | Base mesh size (m) |
 | `meshConfig.volumeSetup` | Refinement boxes: `minCorner`, `maxCorner`, anisotropic `size` [x, y, z]. Make them span both sides of the car (full width) so the same boxes work for a left half, a right half or a full car |
-| `meshConfig.surfaceSetup` | Per-layer surface controls. `size` [target, min], `pl` [prism layers, total thickness], `curv` (points per circle), `prox` (points in gap), `growth` (surface growth rate) |
+| `meshConfig.surfaceSetup` | Per-layer surface controls. `size` [target, min], `pl` [prism layers, total thickness], `curv` (points per circle), `prox` (points in gap), `growth` (surface growth rate). A layer that isn't on the car is skipped with a warning. |
 | `PostProcessing.PlaneSections` | Per-plane movement range. Each key is a plane name (`Plane_XY`, `Plane_XZ`, `Plane_YZ`); `min` / `max` define the sweep range along the plane's normal axis. Write `Plane_XZ` for the left side (y ≤ 0); with `domain.side: right` it is mirrored to +y automatically |
 
 `physics.json` holds `turbModel` (`kwSST`), `gasModel` (`constantDens`) and `coupled` (true/false).
@@ -48,7 +50,8 @@ Keep all `.java` and `.json` files in the same folder, because the subroutines f
    It then subtracts the car from the box and names the result `partName`.
 3. **`global_params.java`**: creates the global parameters (`IFR_vel`, `IFR_turb_*`) that the later steps reference.
 4. **`create_physics.java`**: creates the physics continuum from `physics.json` and sets the initial conditions from the global parameters.
-5. **`create_regions.java`**: creates the region from the domain part. It assigns symmetry, velocity inlet, pressure outlet, slip-wall and moving-road conditions by layer name; car surfaces stay as no-slip walls. For each layer in `wheels` it creates a coordinate system `WheelAxis_<layer>` at the hub and sets that wall to rotate (Local Rotation Rate) about `axis`. The rate is road speed / hub height (`centre` z, with the road at z = 0), signed so the tyre moves with the road where it touches it, and is printed to the output window.
-6. **`gridding.java`**: creates the automated mesh operation (surface remesher, trimmer, prism layers) with the base size, the volume refinement boxes and the per-layer surface controls.
+5. **`create_regions.java`**: creates the region from the domain part. It assigns symmetry, velocity inlet, pressure outlet, slip-wall and moving-road conditions by layer name; car surfaces stay as no-slip walls. For each layer in `wheels` it takes the hub centre and axle direction from `cadParamsFile` (when the wheel has a `cadPrefix`) or from `centre`/`axis` in `case.json`, creates a coordinate system `WheelAxis_<layer>` at the hub and sets that wall to rotate (Local Rotation Rate) about the axle. The rate is road speed / hub height (hub centre z, with the road at z = 0), signed so the tyre moves with the road where it touches it, and is printed to the output window.
+6. **`gridding.java`**: creates the automated mesh operation (surface remesher, trimmer, prism layers) with the base size, the volume refinement boxes and the per-layer surface controls. Surface controls are matched to car surfaces by layer name. A layer with no matching surface gets no control, and all skipped layers are listed in one warning pop-up at the end.
 7. **`initialise.java`**: turns on grid sequencing initialisation if `initialise` asks for it.
-8. **`post_processing.java`**: generates the required derived parts, builds the scenes for the quantities of interest and records the animation.
+
+`post_processing.java` should be then run after solving. It creates the plane sections, the force coefficient and centre of pressure reports, the pressure coefficient scenes and the plane sweep animations.
